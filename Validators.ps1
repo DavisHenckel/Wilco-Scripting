@@ -62,3 +62,29 @@ Function ValidateJobTitle ($JobTitle) {
     }
     return $JobTitle
 }
+
+# Takes in an EmployeeID and checks in AD if the Employee ID exists. 
+# Returns an existing employee's ID
+Function ValidateEmployeeIDExists ($EmployeeID) {
+    while ($true) {
+        if ($EmployeeID -match "^\d+$" -eq 0 -or $EmployeeID.length -gt 5) { #checks for length and ensures it is numeric and less than 6 chars
+            Write-Host ("`nERROR, Employee ID `"$EmployeeID`" contains non numeric characters or is greater than 5 characters`n") -ForegroundColor Red
+            $EmployeeID = Read-Host -Prompt ("Enter the correct Employee ID")
+            continue
+        }
+        $UserTest = Get-ADUser -Filter {employeeID -eq $EmployeeID}
+        if ($null -ne $UserTest) { #If user does exist in AD
+            return $EmployeeID
+        }
+        else { #if user does not exist in AD
+            Write-Host "User `"$EmployeeID`" does not exist in AD." -ForegroundColor Red
+            Write-Host -NoNewline -ForegroundColor Yellow "Enter an existing Employee ID. Enter -Exit to go back to the previous menu: "
+            $EmployeeID = Read-Host
+            if ($EmployeeID -eq "-exit" -or $EmployeeID -eq "-Exit") {
+                return $null
+            }
+            Write-Host "`n"
+            continue
+        }
+    }
+}
