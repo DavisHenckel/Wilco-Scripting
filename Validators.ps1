@@ -156,3 +156,41 @@ Function ValidateUserNameAvailable ($UserName) {
         }
     }
 }
+
+#Takes in an arraylist of group names
+#Takes in a second arraylist of group names.
+#Returns another array list containing the groups that are not included in the first arg.
+Function ValidateJobGroupsNeeded ($GroupList, $GroupListActual) { 
+    $NeededGroups = [System.Collections.ArrayList]@() 
+    if (-not $GroupList) {
+        return
+    }
+    ForEach ($Group in $GroupList) {
+        if ($Group -eq 'Domain Users') {
+            continue
+        }
+        if ($GroupListActual.Contains($Group) -eq $false) {
+            $NeededGroups.Add($Group) | Out-Null
+        }
+    }
+    return $NeededGroups
+}
+
+#Takes in an arraylist of group names
+#Takes in a second arraylist of group names.
+#Returns another array list containing the groups that are included in the first arg but should not be.
+Function ValidateJobGroupsExtra ($GroupList, $GroupListActual) {
+    $AdditionalGroups = [System.Collections.ArrayList]@() 
+    if (-not $GroupList) {
+        return
+    }
+    ForEach ($Group in $GroupListActual) {
+        if ($Group -eq 'Domain Users') {
+            continue
+        }
+        if ($GroupList.Contains($Group) -eq $false) {
+            $AdditionalGroups.Add($Group) | Out-Null
+        }
+    }
+    return $AdditionalGroups
+}
