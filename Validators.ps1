@@ -88,3 +88,30 @@ Function ValidateEmployeeIDExists ($EmployeeID) {
         }
     }
 }
+
+# Takes in an EmployeeID and checks in AD if the Employee ID is unused and is available. 
+# Returns an unused employee ID
+Function ValidateEmployeeIDAvailable ($EmployeeID) {
+    while ($true) {
+        if ($EmployeeID -match "^\d+$" -eq 0 -or $EmployeeID.length -gt 5) { #checks for length and ensures it is numeric and less than 6 chars
+            Write-Host ("`nERROR, Employee ID `"$EmployeeID`" contains non numeric characters or is greater than 5 characters`n") -ForegroundColor Red
+            $EmployeeID = Read-Host -Prompt ("Enter the correct Employee ID")
+            continue
+        }
+        $UserTest = Get-ADUser -Filter {employeeID -eq $EmployeeID}
+        if ($null -ne $UserTest) { #If user does exist in AD
+            Write-Host "User `"$EmployeeID`" already exists in AD." -ForegroundColor Red
+            Write-Host -NoNewline -ForegroundColor Yellow "Enter a valid Employee ID. Enter -Exit to return to the previous menu: "
+            $EmployeeID = Read-Host
+            Write-Host "`n"
+            if ($EmployeeID -eq "-Exit" -or $EmployeeID -eq "-exit") {
+                return $null
+            }
+            continue
+        }
+        else { #if user does not exist in AD
+            return $EmployeeID
+        }
+    }
+}
+
