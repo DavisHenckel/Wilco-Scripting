@@ -24,7 +24,10 @@ By creating these scripts, I was able to achieve almost complete hands-off autom
 - Changing "Reports To" field in AD if a Manager Separated
 - Generating Reports of Office Licensing Information combined with other AD Attributes
 - Generating Reports of other specific AD Attributes
-- Auditing AD Monthly to ensure AD Contents Match HR's Database.  
+- Auditing AD Monthly to ensure AD Contents Match HR's Database  
+- Auditing all user permissions
+
+It also led to enhancing some of the data integrity of users in Active Directory.
 
 ## The Process, Before and After
 ### Before
@@ -42,4 +45,4 @@ The whole process to create a user typically took about 5 minutes and was error 
 ## Conclusion
 I was very impressed with the implementation Wilco had when I arrived, but once I learned some of the capabilities of PowerShell, I was excited to try to improve upon what had already been built!  
 
-Some of the information I will be unable to include because it would reveal business specific information. This is mainly a repository to showcase my first "large" project that I completed almost entirely by myself. With of course, some help of the above listed PowerShell Modules; especially ImportExcel 😊
+Some of the information I will be unable to include because it would reveal business specific information. This is mainly a repository to showcase my first "large" project that I completed almost entirely by myself. Building these scripts, along with taking an Open Source Software Class inspired me to make my first OSS contribution to ImportExcel, where I contributed documentation that would have helped me when I was first learning the module. The documentation I contributed can be seen [here](https://github.com/dfinke/ImportExcel/tree/master/FAQ)😊
