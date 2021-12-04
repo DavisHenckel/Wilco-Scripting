@@ -115,3 +115,44 @@ Function ValidateEmployeeIDAvailable ($EmployeeID) {
     }
 }
 
+# Takes in a username in FirstName LastName format and checks in AD if the user exists in AD
+# Returns an existing Username in FirstName LastName format
+Function ValidateUserNameExists ($UserName) {
+    while ($true) {
+        $UserTest = Get-ADUser -Filter {Name -eq $UserName} #check if user exists. This was taken from New_User_Script_2020.ps1
+        if ($null -ne $UserTest) { #if a user exists with this name in AD.
+            return $UserName
+        }
+        else { #if a user doens't exist with this name in AD
+            Write-Host "User `"$UserName`" doesn't exist in AD" -ForegroundColor Red
+            Write-Host -NoNewline -ForegroundColor Yellow "Enter a valid User Name. Enter -Exit to return to the previous menu: "
+            $UserName = Read-Host
+            Write-Host "`n"
+            if ($UserName -eq "-Exit" -or $UserName -eq "-exit") {
+                return $null
+            }
+            continue
+        }
+    }
+}
+
+# Takes in a username in FirstName LastName format and checks in AD if the username is unused and is available in AD
+# Returns an unused and available Username in FirstName LastName format
+Function ValidateUserNameAvailable ($UserName) {
+    while ($true) {
+        $UserTest = Get-ADUser -Filter {Name -eq $UserName} #check if user exists. This was taken from New_User_Script_2020.ps1
+        if ($null -ne $UserTest) { #if a user exists with this name in AD.
+            Write-Host "User `"$UserName`" Already exists in AD." -ForegroundColor Red
+            Write-Host -NoNewline -ForegroundColor Yellow "Enter a valid User Name. Enter -Exit to return to the previous menu: "
+            $UserName = Read-Host
+            Write-Host "`n"
+            if ($UserName -eq "-Exit") {
+                return $null
+            }
+            continue
+        }
+        else { #if a user doens't exist with this name in AD
+            return $UserName
+        }
+    }
+}
