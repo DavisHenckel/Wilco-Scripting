@@ -1,6 +1,6 @@
 # Wilco-Scripting
 ## Introduction
-Public version of my repository used at work to showcase some of my first bits of PowerShell scripting and development. I am creating this repository to be public facing so that it will not contain any business specific information.  
+Public version of my repository used at work to showcase some of my first bits of PowerShell scripting and development.  
   
 The results of creating this module is what led to my success in my role as a Service Desk Technician. It also further sparked my interest for the use of source control on Github, and software development in General. 
 ## Modules Used
