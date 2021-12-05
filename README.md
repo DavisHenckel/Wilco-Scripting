@@ -3,6 +3,22 @@
 Public version of my repository used at work to showcase some of my first bits of PowerShell scripting and development.  
   
 The results of creating this module is what led to my success in my role as a Service Desk Technician. It also further sparked my interest for the use of source control on Github, and software development in General. 
+## Installing
+Since this module was made for my own use case. It is not published on the PowerShell Gallery. To install the module, I had to lookup ```$env:PSModulePath``` and initialize the file structure manually:  
+-Folder name of Module    
+-----Folder containing version name defined in psd1  
+---------All Module contents  
+
+Then I was able to run:  
+```powershell
+Import-Module Wilco-Scripting
+```
+To test for success, I could run:
+```powershell
+Get-Command -Module Wilco-Scripting
+```
+To see the list of all available commands in the module.
+
 ## Modules Used
 [ImportExcel](https://github.com/dfinke/ImportExcel) - Module used to read, write, and manipulate Excel Files.  
 [ActiveDirectory](https://docs.microsoft.com/en-us/powershell/module/activedirectory/?view=windowsserver2019-ps) - Module used to interface with Active Directory.  
