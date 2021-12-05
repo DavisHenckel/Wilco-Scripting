@@ -203,7 +203,7 @@ Function GetCityNameForLocation ($LocNum) {
 Function GetAccessMatrixData ($PathToFile) {
     
     Try {
-        $AccessMatrixFile = Import-Excel $PathToFile -WorksheetName RawSecurity #Load the RawSecurity Worksheet
+        $AccessMatrixFile = Import-Excel $PathToFile -WorksheetName WorksheetName #Load the Worksheet
     }
     Catch {
         Write-Host "ERROR -- Could not read file at path $($PathToFile). Exiting" -ForegroundColor Red
@@ -601,34 +601,5 @@ Function GetManagerAtLocation ($LocationCode) {
     }
     else {
         return $Managers[0]
-    }
-}
-
-#later put this in the test functions.
-Function TestLRLManagerNames {
-    Write-Host "Look for any red text. If any red text is found, the script will encounter errors when trying to assign this person as the manager."
-    $LocationPath = $PSScriptRoot + "\Excel Dependencies\FileName.xlsx" #change this to the Location Reference list at Some point...
-    $ExcelData = Import-Excel $LocationPath -WorksheetName LocationInfo
-    $Managers = $ExcelData."Manager" #array of all locations
-    ForEach ($Manager in $Managers) {
-        $temp = GetADUserCustom -SearchBy Name -SearchFor $Manager -ReturnData "sAMAccountName"
-        Write-Host "$Manager SAM is $temp" -ForegroundColor Green
-    }
-    cmd /c pause
-}
-
-#later put this in the test functions.
-Function TestGettingUsersAtLocations {
-    $LocationPath = $PSScriptRoot + "\Excel Dependencies\FileName.xlsx" #change this to the Location Reference list at Some point...
-    $ExcelData = Import-Excel $LocationPath -WorksheetName LocationInfo
-    $Locations = $ExcelData."departmentNumber" #array of all locations
-    ForEach ($Num in $Locations) {
-        $Users = GetAllUsersAtLocation $Num
-        Write-Host "Location code: $Num" -ForegroundColor Cyan
-        Write-Host "===================" -ForegroundColor Yellow
-        ForEach ($User in $Users) {
-            Write-Host $User -ForegroundColor Cyan
-        }
-        cmd /c pause
     }
 }

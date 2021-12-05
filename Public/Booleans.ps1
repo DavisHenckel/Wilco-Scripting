@@ -1,4 +1,6 @@
-#Returns a Boolean
+#Takes in custom ps object that is the access matrix
+#Takes in a job title
+#Returns a Boolean that states whether the job gets eagle
 Function DoesJobGetEagle ($AccessMatrix, $JobTitle) {
     $JobTitleArray = $AccessMatrix."Job Titles" #Load the Column of Job Titles
     $IndexOfJobTitle = $JobTitleArray.IndexOf($JobTitle) #Gets the row of the current Job Title
@@ -11,7 +13,9 @@ Function DoesJobGetEagle ($AccessMatrix, $JobTitle) {
 
 }
 
-#Returns a Boolean
+#Takes in custom ps object that is the access matrix
+#Takes in a job title
+#Returns a Boolean that states whether the job gets MOL
 Function DoesJobGetMOL ($AccessMatrix, $JobTitle) {
     $JobTitleArray = $AccessMatrix."Job Titles" #Load the Column of Job Titles
     $IndexOfJobTitle = $JobTitleArray.IndexOf($JobTitle) #Gets the row of the current Job Title
@@ -23,6 +27,9 @@ Function DoesJobGetMOL ($AccessMatrix, $JobTitle) {
     return $false
 }
 
+#Takes in custom ps object that is the access matrix
+#Takes in a job title
+#Returns a Boolean that states whether the job gets an MOL Login, or the shared account. Shared account would be false.
 Function DoesJobHaveMOLLogin ($AccessMatrix, $JobTitle) {
     $JobTitleArray = $AccessMatrix."Job Titles" #Load the Column of Job Titles
     $IndexOfJobTitle = $JobTitleArray.IndexOf($JobTitle) #Gets the row of the current Job Title
@@ -37,6 +44,9 @@ Function DoesJobHaveMOLLogin ($AccessMatrix, $JobTitle) {
     return $false
 }
 
+#Takes in custom ps object that is the access matrix
+#Takes in a job title
+#Returns a Boolean that states whether the job gets Sage
 Function DoesJobGetSAGE ($AccessMatrix, $JobTitle) {
     $JobTitleArray = $AccessMatrix."Job Titles" #Load the Column of Job Titles
     $IndexOfJobTitle = $JobTitleArray.IndexOf($JobTitle) #Gets the row of the current Job Title
@@ -48,6 +58,9 @@ Function DoesJobGetSAGE ($AccessMatrix, $JobTitle) {
     return $false
 }
 
+#Takes in custom ps object that is the access matrix
+#Takes in a job title
+#Returns a Boolean that states whether the job gets Docuware
 Function DoesJobGetDocuware ($AccessMatrix, $JobTitle) {
     $JobTitleArray = $AccessMatrix."Job Titles" #Load the Column of Job Titles
     $IndexOfJobTitle = $JobTitleArray.IndexOf($JobTitle) #Gets the row of the current Job Title
@@ -64,6 +77,9 @@ Function DoesJobGetDocuware ($AccessMatrix, $JobTitle) {
     return $false
 }
 
+#Takes in custom ps object that is the access matrix
+#Takes in a job title
+#Returns a Boolean that states whether the job is defined as a manager in the access matrix
 Function IsJobAManager ($AccessMatrix, $JobTitle) {
     $JobTitleArray = $AccessMatrix."Job Titles" #Load the Column of Job Titles
     $IndexOfJobTitle = $JobTitleArray.IndexOf($JobTitle) #Gets the row of the current Job Title
@@ -75,7 +91,9 @@ Function IsJobAManager ($AccessMatrix, $JobTitle) {
     return $false
 }
 
-#Returns a Boolean
+#Takes in custom ps object that is the access matrix
+#Takes in an employee ID
+#Returns a Boolean that states whether the users job title is defined as a manager
 Function IsUserAManager ($EmployeeID, $AccessMatrix) {
     $User = Get-AdUser -Filter {employeeID -eq $EmployeeID -and Enabled -eq $true} -Properties description | Select-Object description
     $Desc = $User."description"
@@ -83,14 +101,21 @@ Function IsUserAManager ($EmployeeID, $AccessMatrix) {
     Return $Result
 }
 
+#Takes in an employee ID
+#Takes in a username
+#Returns a Boolean that states whether the emploee ID and the user name match.
 Function EmployeeIDMatchesName ($EmployeeID, $Name) {
-    $NamesEmpId = GetUsersEmployeeIDByName $Name
+    $EmployeeID = [string]$EmployeeID
+    $NamesEmpId = GetADUserCustom -SearchBy Name -SearchFor $Name -ReturnData EmployeeID
     if ($EmployeeID -eq $NamesEmpId) {
         return $true
     }
     return $false
 }
 
+#Takes in custom ps object that is the access matrix
+#Takes in a job title
+#Returns a Boolean that states whether the job gets Grower accounting.
 Function DoesJobGetGA ($AccessMatrix, $JobTitle) {
     $JobTitleArray = $AccessMatrix."Job Titles" #Load the Column of Job Titles
     $IndexOfJobTitle = $JobTitleArray.IndexOf($JobTitle) #Gets the row of the current Job Title
