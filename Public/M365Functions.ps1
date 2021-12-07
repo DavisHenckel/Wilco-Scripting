@@ -182,7 +182,7 @@ Function AddUserToOnlineDG ($EmployeeID, $OnlineGroup) {
     }
 }
 
-#Takes in a SAMACcountName
+#Takes in a SAMAccountName
 #Signs user out of all Sessions
 Function SignUserOutOfM365 ($sAMAccountName) {
     ConnectAzureAD
@@ -532,4 +532,284 @@ Function GetOfficeLicenseDataPerLocation {
     Write-Host "Finished Building Data Structure and writing unknown users to CSV." -ForegroundColor Green
     #All users without known location are now written to the CSV file.
     Return $LicensesPerLoc #2D Hash representing the number of licenses per location code.
+}
+
+#Takes in a 2D hash that represents the number of licenses per location code.
+#Writes the data to Excel.
+Function WriteLicenseDataToExcel ($HashOfLicenseData) {
+    $FilePath = $env:USERPROFILE + "\Desktop\License&LocationData.xlsx"
+    Write-Host "`nGenerating License&LocationData.xlsx saved to:`n" -ForegroundColor Magenta
+    Write-Host "    $FilePath`n" -ForegroundColor Cyan
+    #Stores column value of the license
+    $LicenseExcelLocations = @{
+        "Microsoft Stream Trial" = 2;
+        "Project Plan 3" = 3;
+        "Power BI Free" = 4;
+        "Microsoft Teams Exploratory" = 5;
+        "Flow Free" = 6;
+        "F3" = 7;
+        "Exchange Online Kiosk" = 8;
+        "E3" = 9;
+        "E1" = 10;
+        "Visio Plan 2" = 11;
+        "Power Automate per user with attended RPA Plan" = 12;
+        "Microsoft Business Center" = 13;
+        "Power BI Pro" = 14
+    }
+    if (Test-Path $FilePath) {
+        Remove-Item $FilePath -Force
+    }
+    "" | Export-Excel $FilePath -WorksheetName "LicenseData" #Build empty excel file
+    $RowCounter = 2
+    $ExcelPkgFile = Open-ExcelPackage -Path $FilePath #Open Excel file
+    $WorkSheet= $ExcelPkgFile.Workbook.Worksheets["LicenseData"] #open excel workbook
+    $count = 2
+    ForEach ($KVPair in $LicenseNames.GetEnumerator()) {
+        $LicenseName = $KVPair.Value
+        $WorkSheet.Cells[1,$count].Value = $LicenseName #write data to excel
+        $count += 1
+    }
+    $WorkSheet.Cells[$RowCounter, 1].Value = $LocationCode #write data to excel
+    #outer hash is the location code.
+    ForEach ($Key in ($HashOfLicenseData.GetEnumerator())) {
+        $WorkSheet.Cells[$RowCounter,1].Value = $Key.Name #Write the location code
+        $InnerHash = $Key.Value #store in variable to make iterating more readable
+        #nested key is the license and the count
+        ForEach ($NestedKey in ($InnerHash.GetEnumerator())) {
+            $ColumnVal = $LicenseExcelLocations."$($NestedKey.Name)" #Find the license column value. Using the hash hardcoded above.
+            $WorkSheet.Cells[$RowCounter,$ColumnVal].Value = $NestedKey.Value #Write count of licenses to correct row and location.
+        }
+        $RowCounter += 1 #increment the row to write the new location code below previous.
+    }
+    Write-Host "Saving File..." -ForegroundColor Magenta
+    Close-ExcelPackage $ExcelPkgFile #close and save the file when finished
+    Write-Host "Completed!" -ForegroundColor Green
+}
+#Takes in nothing
+#Acts as a frontEnd for the function GetOfficeLicenseDataPerLocation. It will output the data to the console.
+Function RunOfficeDataReport {
+    Clear-Host
+    $OfficeData = GetOfficeLicenseDataPerLocation
+    ForEach ($Key in ($OfficeData.GetEnumerator())) {
+        $Location = $Key.Name
+        $Hash = $Key.Value
+        Write-Host -NoNewline -ForegroundColor Yellow "`nLocation Code: "
+        Write-Host -NoNewline -ForegroundColor Cyan $Location
+        $Dept = GetDeptNameForLocation $Location
+        Write-Host " -- " -ForegroundColor Yellow -NoNewline
+        Write-Host $Dept -ForegroundColor Cyan
+        ForEach ($NestedKey in ($Hash.GetEnumerator())) {
+            $LicenseName = $NestedKey.Name 
+            $Count = $NestedKey.Value
+            Write-Host -NoNewline -ForegroundColor Yellow "    License: "
+            Write-Host -NoNewline -ForegroundColor Cyan $LicenseName
+            Write-Host -NoNewline -ForegroundColor Yellow " : "
+            Write-Host -ForegroundColor Cyan $Count
+        }
+    }
+    cmd /c pause
+}
+
+#Takes in an email address (Upn)
+#Returns a boolean on whether the user has an office license.
+Function DoesUserHaveLicense($EmailAddress) {
+    ConnectMSOL
+    $flag = $false
+    (Get-MsolUser -UserPrincipalName $EmailAddress -ErrorAction SilentlyContinue).licenses.AccountSkuId | ForEach-Object {
+        if ($_) {
+            $flag = $true
+            if ($flag) { #just to get rid of dumb VSCODE warning of unused variable. 
+                return $flag
+            } 
+        }
+    }
+
+    return $flag
+}
+
+#Takes in a location code
+#Returns to the console, each user and their office license as well as the count of the totals for that location.
+Function DisplayOfficeLicensesAtLocation ($LocationCode) {
+    ConnectMSOL
+    $LicenseData = @{ } #Hash we will store totals in.
+    $LocationCode = ValidateLocationCode $LocationCode
+    $ListOfUsers = GetAllUsersAtLocation $LocationCode
+    Write-Host "`nOffice License Information at Location $LocationCode" -ForegroundColor Yellow
+    Write-Host "==========================================`n" -ForegroundColor Yellow
+    
+    ForEach ($User in $ListOfUsers) { #loop through all users
+        $Upn = GetADUserCustom -SearchBy sAMAccountName -SearchFor $User -ReturnData Mail
+        if ($null -eq $Upn) {
+            continue
+        }
+        (Get-MsolUser -UserPrincipalName $Upn).licenses.AccountSkuId | ForEach-Object { #Get all the user's office licenses
+            if ($null -eq $_) { #if no office license, we don't care. Skip to next user.
+                continue
+            }
+            $LicName = $LicenseNames.$_
+            Write-Host "User: " -NoNewline -ForegroundColor Yellow
+            Write-Host "$User" -ForegroundColor Cyan -NoNewline
+            Write-Host " has license " -ForegroundColor Yellow -NoNewline
+            Write-Host $LicName -ForegroundColor Cyan
+            $CurrentCountOfLicenses = $LicenseData.$LicName #load current number of this license per this location
+            if (-not $CurrentCountOfLicenses) { #if the location does have some licenses, we don't need to initialize it, but just assign this particular license to count of 1.
+                $LicenseData.$LicName = 1 #initialize license count
+            }
+            else {
+                $LicenseData.$LicName = $CurrentCountOfLicenses + 1 #increment license count.
+            }
+        }
+    }
+    Write-Host "`nTotals" -ForegroundColor Yellow
+    Write-Host "======" -ForegroundColor Yellow
+    ForEach ($Key in ($LicenseData.GetEnumerator())) {
+        $LicenseName = $Key.Name
+        $LicenseCount = $Key.Value
+        Write-Host "$LicenseName : $LicenseCount" -ForegroundColor Cyan
+    }
+}
+
+#START OF MAILBOX MANAGEMENT FUNCTIONS
+
+#Takes in an employee ID
+#Takes in a mailbox name
+#Assigns the employee to have the mailbox permission(full access)
+Function AssignMailboxPermissions($EmployeeID, $Mailbox) {
+    ConnectEXO
+    $err1 = $null
+    $EmpName = GetADUserCustom -SearchBy EmployeeID -SearchFor $EmployeeID -ReturnData Name
+    $MailboxID = Get-Mailbox -Anr $Mailbox -ErrorAction SilentlyContinue | Select-Object ExternalDirectoryObjectId
+    if ($null -eq $MailboxID) {
+        Write-Host "Unable to find Mailbox `"$Mailbox`" Make sure it is spelled correctly in Access Matrix." -ForegroundColor Red
+        return
+    }
+    else {
+        $Counter = 0
+        $UserReadyInEXO = IsUserShownInEXO $EmpName
+        while ($UserReadyInEXO -eq $false) {
+            if ($Counter -eq 0) {
+                Write-Host "Waiting for user to be shown in Exchange Online.`nThis may take a while for new users." -ForegroundColor Magenta -NoNewline
+            }
+            $UserReadyInEXO = IsUserShownInEXO $EmpName
+            $Counter = $Counter + 1
+            if ($Counter % 20 -eq 0) { #output a . every 20 tries to show the user it's still working.
+                Write-Host -NoNewline "." -ForegroundColor Magenta
+            }
+        }
+        if ($Counter -gt 0) {
+            Write-Host ""
+        }
+        Add-MailboxPermission -Identity $MailboxID."ExternalDirectoryObjectId" -User $EmpName -AccessRights FullAccess -InheritanceType All -ErrorVariable $err1 | Out-Null
+    } 
+    if ($null -ne $err1) {
+        return -1
+    }
+    Write-Host "Added " -ForegroundColor Green -NoNewline
+    Write-Host "$EmpName" -ForegroundColor Cyan -NoNewline
+    Write-Host " to have permissions to mailbox " -NoNewline -ForegroundColor Green
+    Write-Host "$Mailbox" -NoNewline -ForegroundColor Cyan
+    Write-Host " successfully." -ForegroundColor Green
+}
+
+#Takes in an employeeID
+#Removes the users permission to all mailboxes.
+Function RemoveMailboxPermissions($EmployeeID) {
+    ConnectEXO
+    $err1 = $null
+    $EmpName = GetADUserCustom -SearchBy EmployeeID -SearchFor $EmployeeID -ReturnData Name
+    $sAM = GetADUserCustom -SearchBy Name -SearchFor $EmpName -ReturnData "sAMAccountName"
+    $PossibleMailboxMembership = GetAllDeptMailboxes #Retreives the Dept Mailboxes from the OU in AD.
+    $MailboxNames = [System.Collections.ArrayList]@()
+    ForEach ($MailboxSAM in $PossibleMailboxMembership) { #this loop retreives all the licensed mailboxes in our AD environment.
+        $EmailAddress = GetADUserCustom -SearchBy sAMAccountName -SearchFor $MailboxSAM -ReturnData Mail
+        if ($null -eq $EmailAddress) {
+            continue
+        }
+        $HasLicense = DoesUserHaveLicense $EmailAddress
+        if ($HasLicense) {
+            $MailboxNames.Add($MailboxSAM) | Out-Null
+        }
+    }
+    $SharedMailboxes = GetSharedMailboxPermissions $sAM
+    ForEach ($Mailbox in $SharedMailboxes) {
+        $MailboxNames.Add($Mailbox."Identity") | Out-Null
+    }
+    ForEach ($MailboxIter in $MailboxNames) { #loop through mailboxes and find if a user has permissions to any.
+        $Result = Get-Mailbox -Anr $MailboxIter | Get-MailboxPermission -User $EmpName
+        if ($Result) { #if result is not null, the user has permissions
+            $MailboxID = Get-Mailbox -Anr $MailboxIter | Select-Object ExternalDirectoryObjectId
+            $MailboxID = $MailboxID."ExternalDirectoryObjectId"
+            Remove-MailboxPermission -Identity $MailboxID -User $EmpName -AccessRights FullAccess -ErrorVariable $err1 -Confirm:$false
+            if ($null -ne $err1) {
+                return -1
+            }   
+            else {
+                Write-Host "Successfully removed " -ForegroundColor Green -NoNewline
+                Write-Host "$EmpName" -ForegroundColor Cyan -NoNewline
+                Write-Host " from mailbox: " -NoNewline -ForegroundColor Green
+                Write-Host "$MailboxIter" -ForegroundColor Cyan
+            }
+        }
+    } 
+}
+
+#Takes in a SAMACcountNAme
+#Returns the list of permissions to mailboxes.
+Function GetSharedMailboxPermissions($sAMAccountName) {
+    ConnectEXO
+    $EmailAddr = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData Mail
+    $MailboxMembership = Get-Mailbox -RecipientTypeDetails SharedMailbox -ResultSize:Unlimited | Get-EXOMailboxPermission | Select-Object Identity,User  | Where-Object {($_.user -like $EmailAddr)}
+    return $MailboxMembership
+}
+
+
+#Taken from Microsoft Docs 
+#Sets the MFA requirement state
+Function Set-MfaState {
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromPipelineByPropertyName=$True)]
+        $ObjectId,
+        [Parameter(ValueFromPipelineByPropertyName=$True)]
+        $UserPrincipalName,
+        [ValidateSet("Disabled","Enabled","Enforced")]
+        $State
+    )
+    Process {
+        Write-Verbose ("Setting MFA state for user '{0}' to '{1}'." -f $ObjectId, $State)
+        $Requirements = @()
+        if ($State -ne "Disabled") {
+            $Requirement =
+                [Microsoft.Online.Administration.StrongAuthenticationRequirement]::new()
+            $Requirement.RelyingParty = "*"
+            $Requirement.State = $State
+            $Requirements += $Requirement
+        }
+        Set-MsolUser -ObjectId $ObjectId -UserPrincipalName $UserPrincipalName `
+                     -StrongAuthenticationRequirements $Requirements
+    }
+}
+
+Function DisableMFA ($sAMAccountName) {
+    ConnectMSOL
+    $UserPrincipalName = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData Mail
+    $User = Get-MsolUser -UserPrincipalName $UserPrincipalName
+    $ObjID = $User."ObjectID"
+    Set-MfaState -ObjectId $ObjID -UserPrincipalName $UserPrincipalName -State "Disabled"
+}
+
+Function EnableMFA ($sAMAccountName) {
+    ConnectMSOL
+    $UserPrincipalName = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData Mail
+    $User = Get-MsolUser -UserPrincipalName $UserPrincipalName
+    $ObjID = $User."ObjectID"
+    Set-MfaState -ObjectId $ObjID -UserPrincipalName $UserPrincipalName -State "Enabled"
+}
+
+Function EnforceMFA ($sAMAccountName) {
+    ConnectMSOL
+    $UserPrincipalName = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData Mail
+    $User = Get-MsolUser -UserPrincipalName $UserPrincipalName
+    $ObjID = $User."ObjectID"
+    Set-MfaState -ObjectId $ObjID -UserPrincipalName $UserPrincipalName -State "Enforced"
 }
