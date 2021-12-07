@@ -145,3 +145,74 @@ Function SetUserHiddenInGAL ($EmployeeID) {
     }
     Write-host "`"$var`" has been hidden from Global Address List" -ForegroundColor Green
 }
+
+#Takes in an employee number
+#Sets the msExchHideFromAddressList as false.
+Function SetUserShownInGAL ($EmployeeID) {
+    $EmployeeID = ValidateEmployeeIDExists $EmployeeID
+    $Username = Get-ADUser -Filter {employeeid -eq $EmployeeID} | Select-Object name,sAMAccountName | Sort-Object name
+    Try {
+        Write-Host "Attempting to show user in GAL..." -ForegroundColor Magenta
+        Set-ADUser -Identity $($Username.sAMAccountName) -replace @{msExchHideFromAddressLists=$false}
+        $var = $($Username.sAMAccountName)
+    }
+    Catch {
+        Write-Host "ERROR -- Unable to show user `"$var`" in the GAL. Try again." -ForegroundColor Red
+        return
+    }
+    Write-Host "User `"$var`" is now shown in the Global Address List" -ForegroundColor Green
+}
+
+#Takes in a distinguished name of manager
+#Takes in a SAMAccountName of a user
+#Sets the distName to be SAMNames Manager
+Function SetUserToHaveNewManager ($ManagerDistName, $UserToChangeSAMName) {
+    Try {
+        Set-ADUser -Identity $UserToChangeSAMName -Replace @{manager=$ManagerDistName} #modify the attribute
+        Write-Host "Successfully updated $UserToChangeSAMName to have $ManagerDistName as their manager!" -ForegroundColor Green
+    }
+    Catch {
+        Write-Host "Unable to update $UserToChangeSAMName to have $ManagerDistName as their manager" -ForegroundColor Red
+    }
+}
+
+# Takes in a manager distinguishedname
+# Takes in an arraylist of employees SAM account names.
+# Sets all users in the arraylist to have the manager dist name.
+Function SetAllUsersToHaveNewManager ($ManagerDistName, $ArrayListOfEmployees) {
+    if ($ArrayListOfEmployees.length -eq 0) {
+        Write-Host "There are no users to update." -ForegroundColor Yellow
+        return
+    }
+    $AreYouSure = 'n'
+    Write-Host "Users to Update" -ForegroundColor Cyan
+    Write-Host "===============" -ForegroundColor Yellow
+    ForEach ($User in $ArrayListOfEmployees) {
+        Write-Host $User -ForegroundColor Yellow
+    }
+    Write-Host "`nARE YOU SURE YOU WISH TO UPDATE THE ABOVE USERS TO HAVE " -ForegroundColor Magenta
+    Write-Host -ForegroundColor Cyan $ManagerDistName
+    Write-Host "AS THEIR MANAGER? (y/n): "-NoNewline -ForegroundColor Magenta
+    While($true) {
+        $AreYouSure = Read-Host
+        Write-Host ""
+        if ($AreYouSure -eq "n" -or $AreYouSure-eq "N" -or $AreYouSure -eq "y" -or $AreYouSure -eq "Y") {
+            break
+        }
+        Write-Host "Invalid input. Enter y/n. "
+    }
+    if ($AreYouSure -eq "y" -or $AreYouSure -eq "Y") {
+        Write-Host "Updating users to have this manager..." -ForegroundColor Magenta
+        ForEach ($User in $ArrayListOfEmployees) {
+            Write-Host "User " -NoNewline -ForegroundColor Magenta
+            Write-Host "$User" -ForegroundColor Cyan -NoNewline
+            Write-Host " now has manager " -ForegroundColor Magenta -NoNewline
+            Write-Host "$ManagerDistName" -ForegroundColor Cyan
+            Set-ADUser -Identity $User -Replace @{manager=$ManagerDistName} #modify the attribute
+        }
+    }
+    else {
+        Write-Host "Not updating any users' managers."
+    }
+    return
+}
