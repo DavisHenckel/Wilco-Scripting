@@ -38,3 +38,50 @@ Function IsUserShownInMSOL ($UserPrincipalName) {
     }
     return $true
 }
+
+#Takes in nothing
+#Checks to ensure MSOL Module is connected and credentials aren't needed
+Function ConnectMSOL {
+    Get-MsolDomain -ErrorAction SilentlyContinue | Out-Null
+    if (-not $?) { #if MSOL is not connected already, it likely expired.
+        Connect-MsolService
+        return
+    }
+    return
+}
+
+#Takes in nothing
+#Checks to ensure EXO Module is connected and credentials aren't needed
+Function ConnectEXO {
+    $getsessions = Get-PSSession | Select-Object -Property State, Name
+    $isconnected = (@($getsessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -gt 0
+    if ($isconnected -ne "True") {
+        Import-Module ExchangeOnlineManagement
+        Connect-ExchangeOnline -ShowBanner:$false
+    }
+}
+
+#Takes in nothing
+#Checks to ensure Azure AD Module is connected and credentials aren't needed
+Function ConnectAzureAD {
+    Try {
+        $temp = Get-AzureADTenantDetail | Out-Null #this won't work unless AzureAD is connected. Assign to vaiable and Out-Null to prevent output to console
+    }
+    Catch {
+        Connect-AzureAD #if not connected, connect
+    }
+    if ($temp) { #just to get rid of dumb VScode warning about unused variable.
+        return
+    }
+}
+
+#Takes in a username
+#Returns boolean on whether the user is shown in EXO environment so mailboxes can be assigned.
+Function IsUserShownInEXO ($Name) {
+    $PotentialError = $null
+    Get-User -Identity $Name -ErrorVariable $PotentialError -ErrorAction SilentlyContinue
+    if ($PotentialError -ne "") {
+        return $false
+    }
+    return $true
+}
