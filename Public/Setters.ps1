@@ -261,3 +261,17 @@ Function SetUserLocation ($LocationCode, $EmployeeID) {
         $PSDefaultParameterValues.Clear() #clear hash for safety.
     }
 }
+
+#Takes in a Job title
+#Takes in an employee ID
+#Sets the employee to have the new job title.
+Function SetNewJobTitle ($JobTitle, $EmployeeID) {
+    Try {
+        $Username = Get-ADUser -Filter {employeeid -eq $EmployeeID} | Select-Object name, sAMAccountName
+    }
+    Catch {
+        Write-Host "Unable to find user `"$EmployeeID`" in AD. "-ForegroundColor Red
+        return
+    }
+    Set-ADUser -Identity $($username.sAMAccountName) -Description $JobTitle -Title $JobTitle
+}
