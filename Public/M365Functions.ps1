@@ -386,23 +386,6 @@ Function DisplayUsersWithOfficeLicenses ($Enabled) {
 # Returns false if the given license is not available
 Function IsO365LicenseAvailable ($LicenseName) {
     ConnectMSOL
-    if ($LicenseName -eq "Exchange Online Kiosk") {
-        $LicenseName = 'wilcocoop:EXCHANGEDESKLESS'
-    }
-    elseif ($LicenseName -eq "E1") {
-        $LicenseName = 'wilcocoop:STANDARDPACK'
-    }
-    elseif ($LicenseName -eq "E3") {
-        $LicenseName = 'wilcocoop:ENTERPRISEPACK'
-    }
-    elseif ($LicenseName -eq "F3") {
-        $LicenseName = 'wilcocoop:DESKLESSPACK'
-    }
-    else { 
-        Write-Host "License `"$Office365LicenseToAdd`" doesn't exist." -ForegroundColor Red
-        return $false
-    }
-
     $O365License = Get-MsolAccountSku | Where-Object {$_.AccountSkuId -eq $LicenseName}
     $NumAvailableLicenses = $O365License.ActiveUnits - $O365License.ConsumedUnits
     If ($NumAvailableLicenses -lt 1) {
@@ -451,4 +434,102 @@ Function AssignOfficeLicense ($sAMAccountName, $Office365LicenseToAdd) {
     Write-Host "$LicName" -ForegroundColor Cyan -NoNewline
     Write-Host " license successfully!" -ForegroundColor Green 
     return $true
+}
+
+#Takes in nothing
+#Returns a HashTable containing all location codes and the count of each office license they have.
+Function GetOfficeLicenseDataPerLocation {
+    Write-Host "Office License Per Location Report." -ForegroundColor Yellow
+    Write-Host "===================================" -ForegroundColor Yellow
+    ConnectMSOL
+    $SavePath = $env:USERPROFILE + "\Desktop\UnknownLocationUsers.csv"
+    Write-Host "If location cannot be determined, the user and their license will be written to UnknownLocationUsers.csv at:`n" -ForegroundColor Yellow
+    Write-Host "    $SavePath`n" -ForegroundColor Cyan
+    Write-Host "Collecting Office License information. This will take a while...(approximately 8 minutes)" -ForegroundColor Magenta
+    if (Test-Path $SavePath) {
+        Remove-Item -Force $SavePath
+    }
+    # Write-Output "This file displays errors in Office License lookup. Likely because of no location code, or the user was not located in AD. All of these are placed in the `"Unknown`" Section of the displayed data." | Out-File -Append -FilePath "C:\ErrorsInOfficeLicenses.txt"
+    $LicensesPerLoc = @{ } #Hash we will store data in. This starts as a 1d hash but turns into a 2d hash
+    $ListOfUsers = Get-MsolUser -All -EnabledFilter EnabledOnly | Select-Object UserPrincipalName #Get the list of all users that are enabled in our O365 environment
+    ForEach ($User in $ListOfUsers) { #loop through all users
+        $Upn = $User."UserPrincipalName"
+        if ($null -eq $Upn) {
+            continue
+        }
+        (Get-MsolUser -UserPrincipalName $Upn).licenses.AccountSkuId | ForEach-Object { #Get all the user's office licenses
+            if ($null -eq $_) { #if no office license, we don't care. Skip to next user.
+                continue
+            }
+            else {
+                $sAMAccountName = GetADUserCustom -SearchBy Mail -SearchFor $Upn -ReturnData "sAMAccountName" #if this user has a license, get their AD UPN. It should be the same, but sometimes it's not. 
+                $License = $LicenseNames."$_" #load the Office licenses name rather than SKU.
+                if (-not $sAMAccountName -and $License) {
+                    $OutputObj = @{
+                        "User" = $Upn;
+                        "License" = $License;
+                        "Reason for Unknown" = "AD Account Issue, (maybe name or UPN?)"
+                    }
+                    $OutputObject = [PSCustomObject]$OutputObj
+                    $OutputObject | Export-Csv -Path $SavePath -Append -NoTypeInformation
+                    $LocCode = "Unknown"
+                    $CurrentCountOfLicenses = $LicensesPerLoc.$LocCode.$License #load current number of this license per this location
+                    if (-not $LicensesPerLoc.$LocCode) { #if there are no licenses assigned to this location code, we need to initialize
+                        $HashToAdd = @{$License = 1} #set the count of this license to 1 as a hash value
+                        $LicensesPerLoc.$LocCode = $HashToAdd #assign the hash into this hash. This is now a 2d hash
+                    }
+                    elseif (-not $CurrentCountOfLicenses) { #if the location does have some licenses, we don't need to initialize it, but just assign this particular license to count of 1.
+                        $LicensesPerLoc.$LocCode.$License = 1
+                    }
+                    else {
+                        $LicensesPerLoc.$LocCode.$License = $CurrentCountOfLicenses + 1 #if there is this specific license at this specific location code, we need to increment by 1.
+                    }
+                    #Write-Output "Unable to count office license for user $Upn. They either cannot be found or don't exist in AD.`nSpecifically, This means that No UserPrincipalName was ever found in AD Matching $Upn" | Out-File -Append -FilePath "C:\ErrorsInOfficeLicenses.txt"
+                    #Write-Output "$Upn : $License (Not displayed in Unknown)" | Out-File -Append -FilePath "C:\ErrorsInOfficeLicenses.txt"
+                    continue
+                }
+                if (-not $License) { #if not one of the defined licenses or.
+                    continue
+                }
+                $LocCode = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData "LocationCode" #Get Location code for this user.
+                if (-not $LocCode) { #if we don't have a valid location code
+                    $OutputObj = @{
+                        "User" = $Upn;
+                        "License" = $License;
+                        "Reason for Unknown" = "No Department Number Attribute"
+                    }
+                    $OutputObject = [PSCustomObject]$OutputObj
+                    $OutputObject | Export-Csv -Path $SavePath -Append -NoTypeInformation -Force
+                    $LocCode = "Unknown"
+                    $CurrentCountOfLicenses = $LicensesPerLoc.$LocCode.$License #load current number of this license per this location
+                    if (-not $LicensesPerLoc.$LocCode) { #if there are no licenses assigned to this location code, we need to initialize
+                        $HashToAdd = @{$License = 1} #set the count of this license to 1 as a hash value
+                        $LicensesPerLoc.$LocCode = $HashToAdd #assign the hash into this hash. This is now a 2d hash
+                    }
+                    elseif (-not $CurrentCountOfLicenses) { #if the location does have some licenses, we don't need to initialize it, but just assign this particular license to count of 1.
+                        $LicensesPerLoc.$LocCode.$License = 1
+                    }
+                    else {
+                        $LicensesPerLoc.$LocCode.$License = $CurrentCountOfLicenses + 1 #if there is this specific license at this specific location code, we need to increment by 1.
+                    }
+                    continue
+                }
+                $CurrentCountOfLicenses = $LicensesPerLoc.$LocCode.$License #load current number of this license per this location
+                if (-not $LicensesPerLoc.$LocCode) { #if there are no licenses assigned to this location code, we need to initialize
+                    $HashToAdd = @{$License = 1} #set the count of this license to 1 as a hash value
+                    $LicensesPerLoc.$LocCode = $HashToAdd #assign the hash into this hash. This is now a 2d hash
+                }
+                elseif (-not $CurrentCountOfLicenses) { #if the location does have some licenses, we don't need to initialize it, but just assign this particular license to count of 1.
+                    $LicensesPerLoc.$LocCode.$License = 1
+                }
+                else {
+                    $LicensesPerLoc.$LocCode.$License = $CurrentCountOfLicenses + 1 #if there is this specific license at this specific location code, we need to increment by 1.
+                }
+            }
+        }
+    }
+    #Write-Host "See the Error File C:\ErrorsInOfficeLicenses.txt to see if any errors in license + Location lookup were found.`n`nDATA BELOW`n==========" -ForegroundColor Yellow
+    Write-Host "Finished Building Data Structure and writing unknown users to CSV." -ForegroundColor Green
+    #All users without known location are now written to the CSV file.
+    Return $LicensesPerLoc #2D Hash representing the number of licenses per location code.
 }
