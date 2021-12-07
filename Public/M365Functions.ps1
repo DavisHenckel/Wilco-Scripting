@@ -180,5 +180,153 @@ Function AddUserToOnlineDG ($EmployeeID, $OnlineGroup) {
         Write-Host "Unable to add user `"$Name`" to Online Distribution or Security Group: `"$OnlineGroup`"" -ForegroundColor Red
         return
     }
+}
 
+#Takes in a SAMACcountName
+#Signs user out of all Sessions
+Function SignUserOutOfM365 ($sAMAccountName) {
+    ConnectAzureAD
+    $UsersEmail = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData Mail
+    $err1 = $null
+    Get-AzureADUser -SearchString $UsersEmail | Revoke-AzureADUserAllRefreshToken -ErrorAction SilentlyContinue -ErrorVariable $err1 
+    if ($null -ne $err1) {
+        Write-Host "Failed to sign user out of all sessions" -ForegroundColor Red
+        return
+    }
+    Write-Host "Successfully signed user out of all sessions." -ForegroundColor Green
+}
+
+#Takes in Nothing
+#Returns an arraylist containing all the online only distribution groups
+Function GetAllOnlineOnlyDG {
+    ConnectMSOL
+    $Groups = Get-Msolgroup -All | Where-Object {$null -eq $_.lastdirsynctime -and $_."GroupType" -eq "Distribution"} | Select-Object DisplayName
+    $DGNames = [System.Collections.ArrayList]@()
+    ForEach($Group in $Groups) {
+        $DGNames.Add($Group."DisplayName") | Out-Null
+    }
+    return $DGNames
+}
+
+#Takes in Nothing
+#Returns an arraylist containing all the online only security groups
+Function GetAllOnlineOnlySG {
+    ConnectMSOL
+    $Groups = Get-Msolgroup | Where-Object {$null -eq $_.lastdirsynctime -and $_."GroupType" -eq "Security"} | Select-Object DisplayName
+    $SGNames = [System.Collections.ArrayList]@()
+    ForEach($Group in $Groups) {
+        $SGNames.Add($Group."DisplayName") | Out-Null
+    }
+    return $SGNames
+}
+
+#https://social.technet.microsoft.com/Forums/exchange/en-US/8f8a4aaa-a6c1-424c-886f-5ea69ef7e328/remove-a-user-from-all-the-distribution-group?forum=exchangesvradminlegacy
+#Takes in an arraylist of groups to be removed
+#Takes in a SAMAccountName
+#Removes the user from all the groups, if errors were encountered, it will return the number of errors.
+#Returns number of errors encountered
+Function RemoveUserFromOnlineDGs ($GroupsToRemove, $sAMAccountName) {
+    ConnectEXO
+    $ErrorsEncountered = $null
+    $UsersEmail = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData Mail
+    if ($GroupsToRemove.Length -lt 1) {
+        return
+    }
+    ForEach ($DG in $GroupsToRemove) {
+        $GrpName = Get-AzureADGroup -ObjectId $DG | Select-Object DisplayName #get group name instead of ObjectID
+        try {
+            Remove-DistributionGroupMember -Confirm:$false -Identity $DG -member $UsersEmail -ErrorAction Stop
+            Write-Host "Removed " -ForegroundColor Green -NoNewline
+            Write-Host $UsersEmail -ForegroundColor Cyan -NoNewline
+            Write-Host " from group "-ForegroundColor Green -NoNewline
+            Write-Host $GrpName."DisplayName" -ForegroundColor Cyan -NoNewline
+            Write-Host " successfully!" -ForegroundColor Green
+        }
+        catch {
+            try {
+                Remove-UnifiedGroupLinks -Identity $DG -LinkType Members -Links $UsersEmail -Confirm:$False -ErrorAction Stop
+                Write-Host "Removed " -ForegroundColor Green -NoNewline
+                Write-Host $UsersEmail -ForegroundColor Cyan -NoNewline
+                Write-Host " from group "-ForegroundColor Green -NoNewline
+                Write-Host $GrpName."DisplayName" -ForegroundColor Cyan -NoNewline
+                Write-Host " successfully!" -ForegroundColor Green
+            }
+            catch {
+                $ErrorsEncountered = 1
+                Write-Host "Failed to remove " -ForegroundColor Red -NoNewline
+                Write-Host $UsersEmail -ForegroundColor Cyan -NoNewline
+                Write-Host " from group "-ForegroundColor Red -NoNewline
+                Write-Host $GrpName."DisplayName" -ForegroundColor Cyan
+            }
+        }
+    }
+    return $ErrorsEncountered
+}
+
+#https://social.technet.microsoft.com/Forums/exchange/en-US/8f8a4aaa-a6c1-424c-886f-5ea69ef7e328/remove-a-user-from-all-the-distribution-group?forum=exchangesvradminlegacy
+#Takes in an arraylist of groups to be removed
+#Takes in a SAMAccountName
+#Removes the user from all the groups, if errors were encountered, it will return the number of errors.
+#Returns number of errors encountered
+Function RemoveUserFromOnlineSGs ($GroupsToRemove, $sAMAccountName) {
+    ConnectMSOL
+    $ErrorsEncountered = $null
+    $UsersEmail = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData Mail
+    if ($GroupsToRemove.Length -lt 1) {
+        return
+    }
+    ForEach ($OnlineGroup in $GroupsToRemove) {
+        $GrpName = Get-AzureADGroup -ObjectId $OnlineGroup | Select-Object DisplayName #get group name instead of ObjectID
+        $err1 = $null
+        $UserGUID = Get-MsolUser -UserPrincipalName $UsersEmail | Select-Object ObjectID #captures the user GUID
+        Remove-MsolGroupMember -GroupObjectId $OnlineGroup -GroupMemberType User -GroupmemberObjectId $UserGUID."ObjectId" -ErrorVariable $err1 -ErrorAction SilentlyContinue
+        if ($null -ne $err1) {
+            Write-Host "Failed to reomve `"" -ForegroundColor Green -NoNewline
+            Write-Host $UsersEmail -ForegroundColor Cyan -NoNewline
+            Write-Host "`" from Online Security group `""-ForegroundColor Green -NoNewline
+            Write-Host $GrpName."DisplayName" -ForegroundColor Cyan 
+            $ErrorsEncountered = 1
+            $ErrorsEncountered = 1
+            continue
+        }
+        else{
+            Write-Host "Removed " -ForegroundColor Green -NoNewline
+            Write-Host $UsersEmail -ForegroundColor Cyan -NoNewline
+            Write-Host " from group "-ForegroundColor Green -NoNewline
+            Write-Host $GrpName."DisplayName" -ForegroundColor Cyan -NoNewline
+            Write-Host " successfully!" -ForegroundColor Green
+            Start-Sleep 1
+            continue
+        }
+    }
+    Return $ErrorsEncountered
+}
+
+#Takes in a SAMAccountName
+#Removes the user from all online only groups.
+Function RemoveUserFromOnlineGroups ($sAMAccountName) {
+    ConnectAzureAD #maintain persistent connection
+    $UserEmail = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData Mail
+    $User = Get-AzureADUser -ObjectId $UserEmail
+    $UserMembership = Get-AzureADUserMembership -ObjectId $User."ObjectID" #Get the groups the user is a part of.
+    $DGGroupsToRemove = [System.Collections.ArrayList]@() #Group to store 
+    $SGGroupsToRemove = [System.Collections.ArrayList]@() #Group to store 
+    $SGs = GetAllOnlineOnlySG
+    $DGs = GetAllOnlineOnlyDG
+    ForEach ($Group in $UserMembership) { #loop through users groups
+        if ($SGs.Contains($Group."DisplayName")) { #if the group is an online only group
+            $SGGroupsToRemove.Add($Group."ObjectId") | Out-Null #add GUID to array
+        }
+        if ($DGs.Contains($Group."DisplayName")) {
+            $DGGroupsToRemove.Add($Group."ObjectId") | Out-Null #add GUID to array
+        }
+    }
+    $Errors1 = RemoveUserFromOnlineSGs $SGGroupsToRemove $sAMAccountName
+    $Errors2 = RemoveUserFromOnlineDGs $DGGroupsToRemove $sAMAccountName
+    if ($Errors1) { #if not null from function
+        Write-Host "Encountered errors when removing user from Online Online Security Groups`nVerify removal of Groups in the Admin Center." -ForegroundColor Red
+    }
+    if ($Errors2) { #if not null from function
+        Write-Host "Encountered errors when removing user from Online Online Distribution Groups`nVerify removal of Groups in the Admin Center." -ForegroundColor Red
+    }
 }
