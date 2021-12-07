@@ -85,3 +85,100 @@ Function IsUserShownInEXO ($Name) {
     }
     return $true
 }
+
+#Takes in an employee ID
+#Takes in a group name
+#Adds the user to the online security group, if the group couldn't be added, it calls the function AddUserToOnlineDG
+Function AddUserToOnlineSG ($EmployeeID, $OnlineGroup) {
+    ConnectMSOL #Ensure MSOL is connected. 
+    $GroupID = Get-Msolgroup | Where-Object {$_.displayName -eq $OnlineGroup -and $null -eq $_.lastdirsynctime}  -ErrorAction SilentlyContinue | Select-Object ObjectID #captures the group ID 
+    $OnlineOnlySGs = GetAllOnlineOnlySG
+    if ($OnlineOnlySGs -contains $OnlineGroup -eq $false) {
+        AddUserToOnlineDG $EmployeeID $OnlineGroup
+        return
+    }
+    $UsersData = GetADUserCustom -SearchBy EmployeeID -SearchFor $EmployeeID -ReturnData All
+    $Name = $UsersData."Name"
+    $UserPrincipalName = $UsersData."Email Address"
+    $UserExistsOnline = IsUserShownInMSOL $UserPrincipalName
+    $Counter = 0
+    while ($UserExistsOnline -eq $false) {
+        if ($Counter -eq 0) {
+            Write-Host "Waiting for user to be shown in MSOL.`nThis may take a while for new users." -ForegroundColor Magenta -NoNewline
+        }
+        $UserExistsOnline = IsUserShownInMSOL $UserPrincipalName
+        $Counter = $Counter + 1
+        if ($Counter % 20 -eq 0) { #output a . every 20 tries to show the user it's still working.
+            Write-Host -NoNewline "." -ForegroundColor Magenta
+        }
+    }
+    if ($Counter -gt 0) {
+        Write-Host ""
+    }
+    $UserGUID = Get-MsolUser -UserPrincipalName $UserPrincipalName | Select-Object ObjectID #captures the user GUID
+    Try {
+        Add-MsolGroupMember -GroupObjectId $GroupID."ObjectId" -GroupMemberType User -GroupMemberObjectId $UserGUID."ObjectId" -ErrorAction Stop #Add the user to the group
+        Write-Host "Added `"" -ForegroundColor Green -NoNewline
+        Write-Host $Name -ForegroundColor Magenta -NoNewline
+        Write-Host "`" to group `""-ForegroundColor Green -NoNewline
+        Write-Host $OnlineGroup -ForegroundColor Magenta -NoNewline
+        Write-Host "`" as a Security Group successfully!" -ForegroundColor Green
+        Start-Sleep 2
+    }
+    Catch {
+        AddUserToOnlineDG $EmployeeID $OnlineGroup
+        return
+    }
+}
+
+#Takes in an employee ID
+#Takes in an online Group
+#Assigns the user to the online group, outputs any errors if there were errors found.
+Function AddUserToOnlineDG ($EmployeeID, $OnlineGroup) {
+    ConnectEXO #Ensure Exchange Online is connected.
+    $GroupName = Get-DistributionGroup -Identity $OnlineGroup -ErrorAction SilentlyContinue | Select-Object Name 
+    if ($null -eq $GroupName) {
+        Write-Host "Unable to locate $OnlineGroup as an online Group. You will need to assign manually.`n" -ForegroundColor Red
+        return
+    }
+    $ToAdd = $GroupName."Name"
+    $Name = GetADUserCustom -SearchBy EmployeeID -SearchFor $EmployeeID -ReturnData Name
+    $UserExistsOnline = IsUserShownInEXO $Name
+    $Counter = 0
+    while ($UserExistsOnline -eq $false) {
+        if ($Counter -eq 1000) {
+        Write-Host "Unable to add user `"$Name`" to Online Distribution or Security Group: `"$OnlineGroup`"" -ForegroundColor Red
+        return
+        }
+        if ($Counter -eq 750) {
+            Write-Host "`nCurrently searching for user: $Name and it is taking a long time. Try entering another name to search for: " -ForegroundColor Yellow -NoNewline
+            $Name = Read-Host
+        }
+        if ($Counter -eq 0) {
+            Write-Host "Waiting for user to be shown in Exchange Online.`nThis may take a while for new users." -ForegroundColor Magenta -NoNewline
+        }
+        $UserExistsOnline = IsUserShownInEXO $Name
+        $Counter = $Counter + 1
+        if ($Counter % 20 -eq 0) { #output a . every 20 tries to show the user it's still working.
+            Write-Host -NoNewline "." -ForegroundColor Magenta
+        }
+    }
+    if ($Counter -gt 0) {
+        Write-Host ""
+    }
+    $UserPrincipalName = GetADUserCustom -SearchBy Name -SearchFor $Name -ReturnData "Mail"
+    Try {
+        Add-DistributionGroupMember -Identity $ToAdd -Member $UserPrincipalName -ErrorAction Stop #Add the user to the group
+        Write-Host "Added `"" -ForegroundColor Green -NoNewline
+        Write-Host $Name -ForegroundColor Magenta -NoNewline
+        Write-Host "`" to group `""-ForegroundColor Green -NoNewline
+        Write-Host $ToAdd -ForegroundColor Magenta -NoNewline
+        Write-Host "`" as a Distribution Group successfully!" -ForegroundColor Green
+        Start-Sleep 1
+    }
+    Catch {
+        Write-Host "Unable to add user `"$Name`" to Online Distribution or Security Group: `"$OnlineGroup`"" -ForegroundColor Red
+        return
+    }
+
+}
