@@ -216,3 +216,48 @@ Function SetAllUsersToHaveNewManager ($ManagerDistName, $ArrayListOfEmployees) {
     }
     return
 }
+
+#Takes in a SAMAccountNAme 
+#Sets the password changeable attribute so the user can change their password prior to 24hrs.
+Function SetPassChangeable ($sAMAccountName) {
+    Try {
+        Set-ADUser -Identity $sAMAccountName -Replace @{pwdLastSet=0}
+    }
+    Catch {
+        Write-Host "Unable to find user `"$sAMAccountName`"" -ForegroundColor Red
+        return
+    }
+    Write-Host "Attribute pwdLastSet modified successfully. User should be able to change password now." -ForegroundColor Green
+    return
+}
+
+#Takes in a location code
+#Takes in an employee ID
+#Sets the user's AD Attributes to have that location 
+Function SetUserLocation ($LocationCode, $EmployeeID) {
+    $LocationCode = ValidateLocationCode($LocationCode) #ensure Location code is valid
+    $EmployeeID = ValidateEmployeeIDExists($EmployeeID) #ensure user Id is valid.
+    $DataToAssign = GetLocationInfo $LocationCode #Loads the row from Location Reference Spreadsheet
+    $Username = Get-ADUser -Filter {employeeid -eq $EmployeeID} | Select-Object name, sAMAccountName
+    
+    ForEach ($Key in ($DataToAssign.GetEnumerator())) { #loop through all elements of the row for the location code in location reference spreadsheet.
+        if ($Key.Value -match '^\s$') { #regex if value is only whitespace, replace with null
+            $Key.Value= $null #if empty string, assign to null so attribute is not set in AD, rather than " "
+        }
+        if ($Key.Name -eq "Domain" -or $Key.Name -eq "OU") { 
+            continue #we don't assign these
+        }
+        if ($Key.Name -eq "Manager") {
+            $Key.Value = GetManagerAtLocation $LocationCode #get manager at location
+        }
+        Try { #try this first, there are 2 ways of assigning AD attributes.
+            Set-ADUser -Identity $($Username.sAMAccountName) -Replace @{$Key.Name=$Key.Value}
+        }
+        Catch { #try this next if it doesn't work. If for some reason this fails, a powershell error will occur.
+            #Write-Host "Catch -- $($Key.Name)=$($Key.Value)" #print statements for debugging
+            $PSDefaultParameterValues=@{"Set-ADUser:$($Key.Name)"=$Key.Value} #see https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parameters_default_values?view=powershell-7.1
+            Set-ADUser -Identity $($Username.sAMAccountName) #Set ADUSer with the set DefaultParameterValues which are set on the line above
+        }
+        $PSDefaultParameterValues.Clear() #clear hash for safety.
+    }
+}
