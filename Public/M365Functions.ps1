@@ -330,3 +330,53 @@ Function RemoveUserFromOnlineGroups ($sAMAccountName) {
         Write-Host "Encountered errors when removing user from Online Online Distribution Groups`nVerify removal of Groups in the Admin Center." -ForegroundColor Red
     }
 }
+
+#https://community.spiceworks.com/topic/1982283-office-365-remove-all-licenses-from-a-user
+#Takes in a SAMAccountName
+#Removes the office license for that user.
+Function RemoveOfficeLicensesFromUser ($sAMAccountName) {
+    ConnectMSOL
+    $EmailAddress = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData Mail
+    (Get-MsolUser -UserPrincipalName $EmailAddress).licenses.AccountSkuId | ForEach-Object {
+        Write-Host "Removing Office 365 License: " -NoNewline -ForegroundColor Magenta
+        $LicenseName = $LicenseNames."$_"
+        Write-Host "$LicenseName" -ForegroundColor Cyan -NoNewline
+        Write-Host " from " -ForegroundColor Magenta -NoNewline
+        Write-Host "$EmailAddress" -ForegroundColor Cyan -NoNewline
+        Write-Host "..." -ForegroundColor Magenta
+        Set-MsolUserLicense -UserPrincipalName $EmailAddress -RemoveLicenses $_
+    }
+}
+
+#Takes in a boolean
+#Returns to the console, the users that are enabled or disabled, depending on the first argument.
+Function DisplayUsersWithOfficeLicenses ($Enabled) {
+    ConnectMSOL
+    $ListOfUsers = $null
+    if ($Enabled -eq $true) {
+        Write-Host "Enabled Users who have Office Licenses" -ForegroundColor Yellow
+        Write-Host "======================================" -ForegroundColor Magenta
+        $ListOfUsers = Get-MsolUser -All -EnabledFilter EnabledOnly | Select-Object UserPrincipalName #Get the list of all users that are enabled in our O365 environment
+    }
+    elseif ($Enabled -eq $false) {
+        Write-Host "Disabled Users who have Office Licenses" -ForegroundColor Yellow
+        Write-Host "=======================================" -ForegroundColor Magenta
+        $ListOfUsers = Get-MsolUser -All -EnabledFilter DisabledOnly | Select-Object UserPrincipalName #Get the list of all users that are enabled in our O365 environment
+    }
+    else {
+        Write-Host "Please Pass a boolean to indicate whether searching for enabled or disabled users."
+        return
+    }
+    ForEach ($User in $ListOfUsers) { #loop through all users
+        $Upn = $User."UserPrincipalName"
+        (Get-MsolUser -UserPrincipalName $Upn).licenses.AccountSkuId | ForEach-Object { #Get all the user's office licenses
+            if ($null -eq $_) { #if no office license, we don't care. Skip to next user.
+                continue
+            }
+            $License = $LicenseNames."$_" #Load License by key $_
+            Write-Host "$Upn : $License" -ForegroundColor Cyan
+        }
+    }
+    Write-Host "Function completed." -ForegroundColor Green
+    return
+}
