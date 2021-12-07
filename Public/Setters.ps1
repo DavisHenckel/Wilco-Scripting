@@ -113,3 +113,35 @@ Function SetUserToHaveGroups_NewUserScript($GroupsToAdd, $EmpNum, $OfficeAssigne
         }
     }
 }
+
+#Takes in an OU as a string
+#Takes in an employee number
+#Places the employee in the OU.
+Function SetUserInOU($OUToBePlacedIn, $EmpNum) {
+    $Username = Get-ADUser -Filter {employeeid -eq $EmpNum} | Select-Object name,sAMAccountName,UserPrincipalName
+    if ($null -eq $Username) {
+        Write-Host "User `"$EmpNum`" does not exist in AD.`nRe-run script with correct employee number." -ForegroundColor Red
+    }
+    Get-ADUser -Filter {employeeID -eq $EmpNum} | Move-ADObject -TargetPath $OUToBePlacedIn
+}
+
+#Takes in an employee number
+#Sets the msExchHideFromAddressList as true.
+Function SetUserHiddenInGAL ($EmployeeID) {
+    $EmployeeID = ValidateEmployeeIDExists $EmployeeID
+    Try {
+        $Username = Get-ADUser -Filter {employeeid -eq $EmployeeID} | Select-Object name,sAMAccountName | Sort-Object nameWrite-
+    }
+    Catch {
+        Write-Host "ERROR -- Unable to locate `"$EmployeeID`" in the AD. Try again." -ForegroundColor Red
+    }
+    Try{
+        Write-Host "Attempting to hide user in GAL..." -ForegroundColor Magenta
+        Set-ADUser -Identity $($Username.sAMAccountName) -Replace @{msExchHideFromAddressLists=$true}
+        $var = $($Username.sAMAccountName)
+    }
+    Catch {
+        Write-Host "ERROR -- Unable to hide `"$var`" in the GAL. Try again." -ForegroundColor Red
+    }
+    Write-host "`"$var`" has been hidden from Global Address List" -ForegroundColor Green
+}
