@@ -415,27 +415,6 @@ Function AssignOfficeLicense ($sAMAccountName, $Office365LicenseToAdd) {
     return $true
 }
 
-#Takes in a SAMACcountName
-#Takes in an office license to be added
-#Assigns the office license to the user.
-Function AssignOfficeLicense ($sAMAccountName, $Office365LicenseToAdd) {
-    $LicName = $Office365LicenseToAdd
-    $EmailAddress = GetADUserCustom -SearchBy sAMAccountName -SearchFor $sAMAccountName -ReturnData Mail
-    ConnectMSOL
-    $PotentialError1 = $null
-    $PotentialError2 = $null
-    Set-MsolUser -UserPrincipalName $EmailAddress -UsageLocation US -ErrorVariable PotentialError1 -ErrorAction SilentlyContinue
-    Set-MsolUserLicense -UserPrincipalName $EmailAddress -AddLicenses $Office365LicenseToAdd -ErrorVariable PotentialError2 -ErrorAction SilentlyContinue
-    if ($PotentialError1 -ne "" -or $PotentialError2 -ne "") {
-        #Write-Host "ERROR -- Unable to assign $Office365LicenseToAdd to $EmailAddress." -ForegroundColor Red
-        return $false
-    }
-    Write-Host "Added " -ForegroundColor Green -NoNewline
-    Write-Host "$LicName" -ForegroundColor Cyan -NoNewline
-    Write-Host " license successfully!" -ForegroundColor Green 
-    return $true
-}
-
 #Takes in nothing
 #Returns a HashTable containing all location codes and the count of each office license they have.
 Function GetOfficeLicenseDataPerLocation {
