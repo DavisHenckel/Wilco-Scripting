@@ -276,10 +276,27 @@ Function GetAccessMatrixData {
     return $AccessMatrixFile
 }
 
-#Takes in a custom PS Object that should be the access matrix
-#Takes in a job title that corresponds to a job in the access matrix
-#Returns a string containing the office license IE: "Exchange online Kiosk, F3, E3, etc."
-Function GetOfficeLicenseForJob ($AccessMatrixFile ,$JobTitle) {
+Function GetOfficeLicenseForJob  {
+    <#
+    .SYNOPSIS
+        Gets an office license name based on a job title
+    .DESCRIPTION
+        Uses ImportExcel to read in the Access spreadsheet. Looks up the row of the job title, then retrieves the corresponding value in the office license field.
+    .PARAMETER AccessMatrixFile
+        PSCustomObject that contanis the data of the AccessMatrix.
+    .PARAMETER JobTitle
+        String that represents a job title.
+    .EXAMPLE
+        $License = GetOfficeLicenseForJob $AccessFile "Service Desk Technician"
+    .OUTPUTS
+        Returns a string that contains the office license data (Exchange online Kiosk, F3, E3, etc).
+    #>
+    param (
+        [parameter(Mandatory=$true)]
+        [PSCustomObject]$AccessMatrixFile,
+        [parameter(Mandatory=$true)]
+        [string]$JobTitle
+    )
     $JobTitleArray = $AccessMatrixFile."Job Titles" #Load the Column of Job Titles
     $IndexOfJobTitle = $JobTitleArray.IndexOf($JobTitle) #Gets the row of the current Job Title
     if ($IndexOfJobTitle -eq -1) {
@@ -310,10 +327,8 @@ Function GetOfficeLicenseForJob ($AccessMatrixFile ,$JobTitle) {
     Return $LicenseName
 }
 
-# Takes in the Access Matrix File. This can be done easily by Calling GetAccessMatrixData and passing it the path to the Access Matrix
-# Takes in a Job title that should be defined in the Access Matrix
-# Returns the AD container for the Job as stated in the Access Matrix. This will define the OU the job should be in.
-Function GetADContainerForJob ($AccessMatrixFile, $JobTitle) {
+Function GetADContainerForJob {
+
     $JobTitleArray = $AccessMatrixFile."Job Titles" #Load the Column of Job Titles
     $IndexOfJobTitle = $JobTitleArray.IndexOf($JobTitle) #Gets the row of the current Job Title
     if ($IndexOfJobTitle -eq -1) {
@@ -341,9 +356,27 @@ Function GetADContainerForJob ($AccessMatrixFile, $JobTitle) {
     Return $ADContainer
 }
 
-# Takes in an AD container like Retail:Users:Location or OWA & Hide from GAL
-# Takes in a location code
-Function GetOUForADContainer ($ADContainer, $LocationCode) {
+Function GetOUForADContainer {
+    <#
+    .SYNOPSIS
+        Gets an OU for a given AD Container.
+    .DESCRIPTION
+        Checks to see if the user is supposed to be an OWA User. Otherwise, gets the OU for the specific location if not an OWA user.
+    .PARAMETER ADContainer
+        A string that describes an OU.
+    .PARAMETER LocationCode
+        A 3 digit string that represents a location code. 
+    .EXAMPLE
+        $OU = GetOUForADContainer "Retail:Users:Location" "010"
+    .OUTPUTS
+        Returns an OU that corresponds to a valid OU in Wilco's Active Directory Structure.
+    #>
+    param (
+        [parameter(Mandatory=$true)]
+        [string]$ADContainer,
+        [parameter(Mandatory=$true)]
+        [string]$LocationCode
+    )
     if ($null -eq $ADContainer) { 
         return "SpecificOUPath"
     }
