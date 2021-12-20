@@ -110,15 +110,13 @@ Function GetLocationForDept {
     return $Ret    
 }
 
-#Takes in a location code.
-#Returns a hashtable containing location info found in the location reference list > LocationInfo Worksheet.
 Function GetLocationInfo {
     <#
     .SYNOPSIS
         Gets data for a location, returned in a hash table.
     .DESCRIPTION
         GetLocationInfo uses the location reference list "LocationInfo" worksheet to return the row of all information that corresponds to the 3 digit location code for a department name. 
-    .PARAMETER DeptName
+    .PARAMETER LocationCode
         Contains a department number IE: "010", "020", etc.
     .EXAMPLE
         $LocationData = GetLocationInfo "010"
@@ -159,18 +157,46 @@ Function GetLocationInfo {
     Return $DataHash #Returns a hash table containing the row of the excel file.
 }
 
-# Takes in a Location code
-# Returns the OU for that location.
-Function GetOUForLocation ($LocNum) {
+Function GetOUForLocation {
+    <#
+    .SYNOPSIS
+        Gets the OU for a given location code
+    .DESCRIPTION
+        Returns the OU for a given location code. See GetLocationInfo for specifics. It uses the LocationInfo Worksheet and returns the OU.
+    .PARAMETER LocNum
+        Contains a department number IE: "010", "020
+    .EXAMPLE
+        $OU = GetOUForLocation "010"
+    .OUTPUTS
+        Returns a string that contains the OU for a given location.
+    #>
+    param (
+        [parameter(Mandatory=$true)]
+        [string]$LocNum
+    )
     $LocNum = ValidateLocationCode($LocNum) #reassigns $LocNum to a valid Location number. Ideally it would be validated before this.
     $LocInfo = GetLocationInfo $LocNum
     $LocationOU = $LocInfo."OU"
     return $LocationOU #return it
 }
 
-# Takes in a location code
-# Returns the city name of the location code
-Function GetDeptNameForLocation ($LocNum) {
+Function GetDeptNameForLocation {
+    <#
+    .SYNOPSIS
+        Gets the Department Name for a given location code
+    .DESCRIPTION
+        Returns the Department Name for a given location code. See GetLocationInfo for specifics. It uses the LocationInfo worksheet and returns the department name.
+    .PARAMETER LocNum
+        Contains a department number IE: "010", "020
+    .EXAMPLE
+        $DeptName = GetDeptNameForLocation "010"
+    .OUTPUTS
+        Returns a string that contains the department name for a given location.
+    #>
+    param (
+        [parameter(Mandatory=$true)]
+        [string]$LocNum
+    )
     $LocNum = ValidateLocationCode($LocNum) #reassigns $LocNum to a valid Location number. Ideally it would be validated before this.
     $LocInfo = GetLocationInfo $LocNum
     $LocationCity = $LocInfo."Department"
@@ -180,6 +206,16 @@ Function GetDeptNameForLocation ($LocNum) {
 #Takes in nothing
 #Returns an arraylist of mailbox names that are defined in the dept mailboxes OU
 Function GetAllDeptMailboxes {
+    <#
+    .SYNOPSIS
+        Gets a subset of online mailboxe within a certain OU
+    .DESCRIPTION
+        Searches an OU for AD Email names, then searches in AzureAD to see if they are licensed and in use.
+    .EXAMPLE
+        $Mailboxes = GetAllDeptMailboxes
+    .OUTPUTS
+        Returns an ArrayList that contains the sAMAccountNames of each mailbox.
+    #>
     $Mailboxes = Get-AdUser -Filter * -SearchBase "SpecificOUPath" | Select-Object sAMAccountName
     $MailboxNames = [System.Collections.ArrayList]@()
     ForEach ($Mailbox in $Mailboxes) {
@@ -188,9 +224,23 @@ Function GetAllDeptMailboxes {
     return $MailboxNames
 }
 
-#Takes in a location code
-#Returns a string that is the name of the city for that location code.
-Function GetCityNameForLocation ($LocNum) {
+Function GetCityNameForLocation {
+    <#
+    .SYNOPSIS
+        Gets the city name for a given location code
+    .DESCRIPTION
+        Returns the city name for a given location code. See GetLocationInfo for specifics. It uses the LocationInfo worksheet and returns the city name.
+    .PARAMETER LocNum
+        Contains a department number IE: "010", "020
+    .EXAMPLE
+        $CityName = GetDeptNameForLocation "010"
+    .OUTPUTS
+        Returns a string that contains the department name for a given location.
+    #>
+    param (
+        [parameter(Mandatory=$true)]
+        [string]$LocNum
+    )
     $LocNum = ValidateLocationCode($LocNum) #reassigns $LocNum to a valid Location number. Ideally it would be validated before this.
     $LocInfo = GetLocationInfo $LocNum
     $LocationCity = $LocInfo."City"
