@@ -1,90 +1,57 @@
-#New function that is more reusable to issue get-aduser commands
-Function GetADUserCustom() {
+Function GetADUserCustom {
+    <#
+    .SYNOPSIS
+        Gets a specific portion of a commonly used Active Directory Attribute.
+    .DESCRIPTION
+        Issues a Get-ADUser command in a format that is a bit more intuitive and narrows down the scope to just commonly used attributes for Wilco.
+    .PARAMETER SearchBy
+        The attribute to search for the user by. This must be in the set "EmployeeID", "Name", "sAMAccountName", "Mail", "DistinguishedName" 
+    .PARAMETER SearchFor
+        The value to lookup the AD User by 
+    .PARAMETER ReturnData
+        The attribute(s) to return. These are commonly used attributes for Wilco. All Does not return all of the AD attributes. It represents the AD Attributes commonly used at Wilco. ReturnData must be in the set "EmployeeID", "Name", "Department", "sAMAccountName", "Mail", "LocationCode", "DistinguishedName", "Title", "Mobile", "Manager", "All". If no value is specified, "All" is used.
+    .EXAMPLE
+        $LogonName = GetADUserCustom -SearchBy Name -SearchFor "Davis Henckel" -ReturnData sAMAccountName
+    .EXAMPLE
+        $UserInfo = GetADUserCustom -SearchBy sAMAccountName -SearchFor "Davis Henckel"
+    .OUTPUTS
+        Returns either the specific value specified in the ReturnData Attribute, or, if ReturnData is "All", returns a HashTable containing all commonly used attributes at Wilco.
+    #>
     param(
+        [parameter(Mandatory=$true)]
+        [ValidateSet("EmployeeID", "Name", "sAMAccountName", "Mail", "DistinguishedName")]
         [string] $SearchBy,
-        [string] $ReturnData,
-        [string] $SearchFor
+        [parameter(Mandatory=$true)]
+        [string] $SearchFor,
+        [parameter(Mandatory=$false)]
+        [ValidateSet("EmployeeID", "Name", "Department", "sAMAccountName", "Mail", "LocationCode", "DistinguishedName", "Title", "Mobile", "Manager", "All")]
+        [string] $ReturnData = "All"
     )
-    $SearchByValidation = @(
-        "EmployeeID",
-        "Name",
-        "sAMAccountName",
-        "Mail",
-        "DistinguishedName"
-    )
-    $ReturnDataValidation = @(
-        "EmployeeID",
-        "Name",
-        "Department",
-        "sAMAccountName",
-        "Mail",
-        "LocationCode",
-        "DistinguishedName",
-        "Title",
-        "Mobile",
-        "Manager",
-        "All"
-    )
-    if ($SearchByValidation.Contains($SearchBy) -eq $false) {
-        Write-Host "ERROR - SearchBy must be: employeeID, Name, sAMAccountName, DistinguishedName, or Mail" -ForegroundColor Red
-        return
-    }
-    if ($ReturnDataValidation.Contains($ReturnData) -eq $false) {
-        Write-Host "ERROR - ReturnData must be: employeeID, Name, sAMAccountName, Mail, LocationCode, DistinguishedName, Department, Mobile, Title, or All" -ForegroundColor Red
-        return
-    }
     if ($ReturnData -eq "LocationCode") {
         $ReturnData = "departmentNumber"
     }
     $User = $null
     #Capture the User.
     if ($SearchBy -eq "EmployeeID") {
-        try {
-            $User = Get-ADUser -Filter {employeeID -eq  $SearchFor -and Enabled -eq $true} -Properties *
-        }
-        catch {
-            Write-Host "Unable to locate `"$SearchFor`" in AD." -ForegroundColor Red
-            return
-        }
+        $User = Get-ADUser -Filter {employeeID -eq  $SearchFor -and Enabled -eq $true} -Properties *
     }
     elseif ($SearchBy -eq "Name") {
-        try {
-            $User = Get-ADUser -Filter {Name -eq  $SearchFor -and Enabled -eq $true} -Properties *
-        }
-        catch {
-            Write-Host "Unable to locate `"$SearchFor`" in AD." -ForegroundColor Red
-            return
-        }
+        $User = Get-ADUser -Filter {Name -eq  $SearchFor -and Enabled -eq $true} -Properties *
     }
     elseif ($SearchBy -eq "sAMAccountName") {
-        try {
-            $User = Get-ADUser -Filter {sAMAccountName -eq  $SearchFor -and Enabled -eq $true} -Properties *
-        }
-        catch {
-            Write-Host "Unable to locate `"$SearchFor`" in AD." -ForegroundColor Red
-            return
-        }
+        $User = Get-ADUser -Filter {sAMAccountName -eq  $SearchFor -and Enabled -eq $true} -Properties *
     }
     elseif ($SearchBy -eq "Mail") {
-        try {
-            $User = Get-ADUser -Filter {mail -eq  $SearchFor -and Enabled -eq $true} -Properties *
-        }
-        catch {
-            Write-Host "Unable to locate `"$SearchFor`" in AD." -ForegroundColor Red
-            return
-        }
+        $User = Get-ADUser -Filter {mail -eq  $SearchFor -and Enabled -eq $true} -Properties *
     }
     elseif ($SearchBy -eq "DistinguishedName") {
-        try {
-            $User = Get-ADUser -Filter {DistinguishedName -eq  $SearchFor -and Enabled -eq $true} -Properties *
-        }
-        catch {
-            Write-Host "Unable to locate `"$SearchFor`" in AD." -ForegroundColor Red
-            return
-        }
+        $User = Get-ADUser -Filter {DistinguishedName -eq  $SearchFor -and Enabled -eq $true} -Properties *
     }
-    #Return requested Data
-    if ($ReturnData -eq "All") {
+    if ($null -eq $User) {
+        Write-Host "User was not found. Searched for: $SearchFor and searched by $SearchBy" -ForegroundColor Red
+        return
+    }
+    if ($ReturnData -eq "All" -or $ReturnData -eq "all") {
         $DataToReturn = @{
             "Location" = $User.departmentNumber[0];
             "Department" =  $User.Department
@@ -104,7 +71,23 @@ Function GetADUserCustom() {
     }
 }
 
-Function GetLocationForDept ($DeptName) {
+Function GetLocationForDept {
+    <#
+    .SYNOPSIS
+        Gets a 3 digit location code.
+    .DESCRIPTION
+        GetLocationForDept uses the location file "LocationInfo" worksheet to return a string containing the 3 digit location code for a department name. 
+    .PARAMETER DeptName
+        Contains a department name IE: "Human Resources", "Marketing", etc.
+    .EXAMPLE
+        $LocationCode = GetLocationForDept "Marketing"
+    .OUTPUTS
+        Returns a 3 digit location code in string format. Output is given in string format to prevent issues with location codes starting in 0.
+    #>
+    param(
+        [parameter(Mandatory=$true)]
+        [String]$DeptName
+    )
     $PathToFile = $PSScriptRoot + "\Excel Dependencies\LocationFile.xlsx"
     
     $ExcelFile = $null
@@ -129,7 +112,23 @@ Function GetLocationForDept ($DeptName) {
 
 #Takes in a location code.
 #Returns a hashtable containing location info found in the location reference list > LocationInfo Worksheet.
-Function GetLocationInfo ($LocationCode) {
+Function GetLocationInfo {
+    <#
+    .SYNOPSIS
+        Gets data for a location, returned in a hash table.
+    .DESCRIPTION
+        GetLocationInfo uses the location reference list "LocationInfo" worksheet to return the row of all information that corresponds to the 3 digit location code for a department name. 
+    .PARAMETER DeptName
+        Contains a department number IE: "010", "020", etc.
+    .EXAMPLE
+        $LocationData = GetLocationInfo "010"
+    .OUTPUTS
+        Returns a hashtable that contains the row of the corresponding location code. This can be used to assign various AD Attributes.
+    #>
+    param (
+        [parameter(Mandatory=$true)]
+        [string]$LocationCode
+    )
     $LocationCode = "$LocationCode"
     if ($LocationCode.Length -eq 2) {
         $LocationCode = "0" + $LocationCode
