@@ -76,7 +76,7 @@ Function GetLocationForDept {
     .SYNOPSIS
         Gets a 3 digit location code.
     .DESCRIPTION
-        GetLocationForDept uses the location file "LocationInfo" worksheet to return a string containing the 3 digit location code for a department name. 
+        GetLocationForDept uses the location reference list "LocationInfo" worksheet to return a string containing the 3 digit location code for a department name. 
     .PARAMETER DeptName
         Contains a department name IE: "Human Resources", "Marketing", etc.
     .EXAMPLE
@@ -160,11 +160,11 @@ Function GetLocationInfo {
 Function GetOUForLocation {
     <#
     .SYNOPSIS
-        Gets the OU for a given location code
+        Gets the OU for a given location code.
     .DESCRIPTION
-        Returns the OU for a given location code. See GetLocationInfo for specifics. It uses the LocationInfo Worksheet and returns the OU.
+        Returns the OU for a given location code. See GetLocationInfo for specifics. It uses the LocationInfo worksheet and returns the OU.
     .PARAMETER LocNum
-        Contains a department number IE: "010", "020
+        Contains a department number IE: "010", "020".
     .EXAMPLE
         $OU = GetOUForLocation "010"
     .OUTPUTS
@@ -183,11 +183,11 @@ Function GetOUForLocation {
 Function GetDeptNameForLocation {
     <#
     .SYNOPSIS
-        Gets the Department Name for a given location code
+        Gets the Department Name for a given location code.
     .DESCRIPTION
         Returns the Department Name for a given location code. See GetLocationInfo for specifics. It uses the LocationInfo worksheet and returns the department name.
     .PARAMETER LocNum
-        Contains a department number IE: "010", "020
+        Contains a department number IE: "010", "020".
     .EXAMPLE
         $DeptName = GetDeptNameForLocation "010"
     .OUTPUTS
@@ -208,7 +208,7 @@ Function GetDeptNameForLocation {
 Function GetAllDeptMailboxes {
     <#
     .SYNOPSIS
-        Gets a subset of online mailboxe within a certain OU
+        Gets a subset of online mailboxe within a certain OU.
     .DESCRIPTION
         Searches an OU for AD Email names, then searches in AzureAD to see if they are licensed and in use.
     .EXAMPLE
@@ -227,11 +227,11 @@ Function GetAllDeptMailboxes {
 Function GetCityNameForLocation {
     <#
     .SYNOPSIS
-        Gets the city name for a given location code
+        Gets the city name for a given location code.
     .DESCRIPTION
         Returns the city name for a given location code. See GetLocationInfo for specifics. It uses the LocationInfo worksheet and returns the city name.
     .PARAMETER LocNum
-        Contains a department number IE: "010", "020
+        Contains a department number IE: "010", "020".
     .EXAMPLE
         $CityName = GetDeptNameForLocation "010"
     .OUTPUTS
@@ -247,10 +247,24 @@ Function GetCityNameForLocation {
     return $LocationCity #return it
 }
 
-# Takes in the path to the Access Matrix
-# Returns a Custom PS Object that resembles a hash table containing all the excel data in the Access Matrix.
-Function GetAccessMatrixData ($PathToFile) {
-    
+
+Function GetAccessMatrixData {
+    <#
+    .SYNOPSIS
+        Enumerates the spreadsheet that defines job titles.
+    .DESCRIPTION
+        Uses ImportExcel module to enumerate a PSCustomObject that contains the data of the worksheet that defines access levels for job titles.
+    .PARAMETER PathToFile
+        String that represents the path to the Excel file that contains the data to enumerate.
+    .EXAMPLE
+        $File = GetAccessMatrixData "C:\test.xlsx"
+    .OUTPUTS
+        Returns PSCustomObject that contains the job role data.
+    #>
+    param (
+        [parameter(Mandatory=$true)]
+        [string]$PathToFile
+    )
     Try {
         $AccessMatrixFile = Import-Excel $PathToFile -WorksheetName WorksheetName #Load the Worksheet
     }
