@@ -328,7 +328,26 @@ Function GetOfficeLicenseForJob  {
 }
 
 Function GetADContainerForJob {
-
+    <#
+    .SYNOPSIS
+        Gets an AD container description name based on a job title
+    .DESCRIPTION
+        Uses ImportExcel to read in the Access spreadsheet. Looks up the row of the job title, then retrieves the corresponding value in the AD Container field.
+    .PARAMETER AccessMatrixFile
+        PSCustomObject that contanis the data of the AccessMatrix.
+    .PARAMETER JobTitle
+        String that represents a job title.
+    .EXAMPLE
+        $License = GetADContainerForJob $AccessFile "Service Desk Technician"
+    .OUTPUTS
+        Returns a string that contains the AD Container for the given job.
+    #>
+    param (
+        [parameter(Mandatory=$true)]
+        [PSCustomObject]$AccessMatrixFile,
+        [parameter(Mandatory=$true)]
+        [string]$JobTitle
+    )
     $JobTitleArray = $AccessMatrixFile."Job Titles" #Load the Column of Job Titles
     $IndexOfJobTitle = $JobTitleArray.IndexOf($JobTitle) #Gets the row of the current Job Title
     if ($IndexOfJobTitle -eq -1) {
